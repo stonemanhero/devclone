@@ -1,4 +1,4 @@
-# ⚡ devclone
+# devclone
 
 **Clone complete Docker & local development projects between two devices in one command.**
 
@@ -8,7 +8,7 @@ When you work across two machines, `git clone` only gives you the source code. Y
 
 ---
 
-## ✨ Why `devclone`?
+## Why `devclone`?
 
 - **One-Command Environment Cloning**: Copies project files, clones Docker volumes and databases, transfers pre-built Docker images, configures `/etc/hosts`, and boots the containers automatically.
 - **100% Read-Only on the Source Device**: Your remote device is never modified. Stopped database volumes are streamed via read-only (`:ro`) mounts, and running databases are dumped live with `mysqldump --single-transaction` without stopping or locking containers.
@@ -22,7 +22,7 @@ When you work across two machines, `git clone` only gives you the source code. Y
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Requirements
 
@@ -69,7 +69,7 @@ DEVCLONE_LOCAL_PROJECTS_DIR=/home/john/Projects
 
 ---
 
-## 🛠️ Usage
+## Usage
 
 ### Interactive Terminal UI
 Run `devclone` with no arguments to open the interactive project browser (`↑`/`↓` to navigate, `/` to search by name or stack, `Enter` to clone an available project or compare an installed one):
@@ -94,7 +94,7 @@ devclone
 
 ---
 
-## 📖 Common Workflows
+## Common Workflows
 
 ### 1. Cloning a Project for the First Time
 
@@ -145,7 +145,7 @@ devclone pull-uploads my-app
 
 ---
 
-## ⚙️ Configuration Reference (`.env`)
+## Configuration Reference (`.env`)
 
 Your local `.env` file is ignored by Git. See [`.env.example`](.env.example) for the full template with comments:
 
@@ -162,6 +162,6 @@ Your local `.env` file is ignored by Git. See [`.env.example`](.env.example) for
 
 ---
 
-## 📄 License
+## License
 
 Released under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
