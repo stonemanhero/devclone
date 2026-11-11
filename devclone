@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""Entry point for devclone CLI / TUI."""
+
+import sys
+from pathlib import Path
+
+# Resolve symlinks so importing devclone_pkg works when invoked via ~/.local/bin/devclone
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from devclone_pkg.cli import cli
+
+if __name__ == "__main__":
+    cli()

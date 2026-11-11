@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devclone"
+version = "1.0.0"
+description = "Remote Desktop to Local Laptop Docker Project Cloner & Non-Git Diff Inspector"
+readme = "README.md"
+license = { text = "AGPL-3.0-or-later" }
+requires-python = ">=3.9"
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+devclone = "devclone_pkg.cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["devclone_pkg*"]

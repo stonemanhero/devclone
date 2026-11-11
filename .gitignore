@@ -1,0 +1,22 @@
+# Local environment configuration (contains private IPs, usernames, SSH key paths)
+.env
+.env.*
+!.env.example
+
+# Python bytecode & packaging artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+ENV/
+
+# IDE & OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
