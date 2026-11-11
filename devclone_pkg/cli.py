@@ -120,11 +120,11 @@ def render_projects_table(
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """
-    devclone — Remote Desktop -> Local Laptop Docker Project Cloner & Non-Git Diff Inspector.
+    devclone — Clone complete Docker & local development projects between two devices.
 
     Rules enforced:
-      • 100% Read-Only on Desktop (Desktop is never altered).
-      • One-Time Setup on Laptop (installed projects are never overwritten; use git for code).
+      • 100% Read-Only on the remote device (never modified).
+      • One-Time Setup lock locally (installed projects are never overwritten; use git for code).
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(interactive_dashboard)

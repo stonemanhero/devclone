@@ -1,3 +1,3 @@
-"""devclone - Remote Desktop to Local Laptop Docker Project Cloner & Non-Git Diff Inspector."""
+"""devclone - Clone complete Docker & local development projects between two devices."""
 
 __version__ = "1.0.0"

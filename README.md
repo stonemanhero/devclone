@@ -1,178 +1,167 @@
-# `devclone` — Remote Desktop → Laptop Docker Project Cloner & Non-Git Diff Inspector
+# ⚡ devclone
 
-`devclone` is a terminal CLI and interactive TUI tool for developers who keep multiple Docker Compose and standalone projects on a primary workstation (Desktop) and want to seamlessly provision selected projects onto a secondary machine (Laptop) over SSH—while inspecting **real, non-Git differences** (`.env` variables, database schemas, migrations, row counts, and untracked media uploads) between both machines.
+**Clone complete Docker & local development projects between two devices in one command.**
 
----
+When you work across two machines, `git clone` only gives you the source code. You still have to copy `.env` files, dump and import databases, move Docker volumes, transfer uploaded media files, rebuild slow Dockerfiles, and update `/etc/hosts`.
 
-## Key Features & Safety Guarantees
-
-1. **100% Read-Only on Remote Desktop**
-   - Remote files, `.env` configs, Docker images, volumes, and container states are **never modified or stopped**.
-   - **Stopped DB Volumes**: Cloned and inspected via ephemeral `:ro` (read-only) Docker volume mounts.
-   - **Live Running DB Containers**: Dumped online using `mysqldump --single-transaction` (with credentials passed securely via `MYSQL_PWD` environment variables) without locking or interrupting the remote database.
-   - **Pre-Built Custom Docker Images**: Automatically streams already-built custom images (e.g., Laravel Sail `sail-8.x/app` or custom `Dockerfile` images) directly from Desktop via `docker save | docker load`, avoiding slow or broken legacy `apt-get` builds on the Laptop.
-
-2. **One-Time Setup Guardrail on Laptop**
-   - Once a project is provisioned into `<DEVCLONE_LOCAL_PROJECTS_DIR>/<project>`, `devclone setup` **locks it** and refuses to overwrite it.
-   - Day-to-day code changes stay strictly in **Git** (`git pull` / `git push`).
-   - Non-code drift between Desktop and Laptop is inspected at any time with `devclone diff` or selectively refreshed with `devclone pull-db`, `devclone pull-env`, and `devclone pull-uploads`.
-
-3. **Deep Non-Git ("Real") Diff Engine (`devclone diff`)**
-   - **`.env` Drift**: Highlights keys missing on Laptop, extra keys on Laptop, and differing values (automatically masking secrets like `PASSWORD`, `SECRET`, `KEY`, `TOKEN` with short SHA-256 fingerprints).
-   - **Database Drift**: Compares applied migrations (e.g. Laravel `migrations` table), missing/extra tables, column schema differences, and exact table row counts—even when database containers are stopped on either machine.
-   - **Untracked Runtime Uploads**: Compares git-ignored media/storage directories (`wp-content/uploads`, `storage/app/public`).
-   - **Host & Volume Checks**: Verifies custom `.local` domains in `/etc/hosts` and required Docker volumes.
+**`devclone`** automates all of that over SSH. Point it at your other device, pick a project, and get a fully running local environment—complete with databases, Docker volumes, pre-built images, `.env` configs, and local domains—without ever modifying the source device.
 
 ---
 
-## Requirements
+## ✨ Why `devclone`?
 
-- **Linux / macOS** with Python 3.9+
-- **Docker** & **Docker Compose** (`docker compose`) installed on both machines
+- **One-Command Environment Cloning**: Copies project files, clones Docker volumes and databases, transfers pre-built Docker images, configures `/etc/hosts`, and boots the containers automatically.
+- **100% Read-Only on the Source Device**: Your remote device is never modified. Stopped database volumes are streamed via read-only (`:ro`) mounts, and running databases are dumped live with `mysqldump --single-transaction` without stopping or locking containers.
+- **No Broken Dockerfile Builds**: If a project uses a custom-built Docker image (such as Laravel Sail or a custom `Dockerfile`), `devclone` streams the already-built image directly from the source device (`docker save | docker load`) so you never hit broken `apt-get` repositories or wait 10 minutes for a build.
+- **Safe One-Time Setup Lock**: Once a project is cloned to your local device, `devclone setup` locks it so you can never accidentally overwrite your local code changes. Use `git` for code, and use `devclone` to inspect or pull database/config/media updates when needed.
+- **Environment & Database Comparison (`devclone diff`)**: Instantly compare everything Git ignores between both devices:
+  - `.env` keys and values (with automatic secret masking)
+  - Database tables, columns, applied migrations, and exact row counts (works even when DB containers are stopped!)
+  - Untracked media/storage folders (`wp-content/uploads`, `storage/app/public`)
+  - `/etc/hosts` domains and Docker volumes
+
+---
+
+## 🚀 Quick Start
+
+### 1. Requirements
+
+- **Linux** or **macOS** with Python 3.9+
+- **Docker** & **Docker Compose** (`docker compose`)
 - **OpenSSH** (`ssh`) & **rsync**
-- Passwordless SSH key access from Laptop → Desktop
+- Passwordless SSH key access between your two devices
 
----
-
-## Installation
+### 2. Install
 
 ```bash
-# 1. Clone the repository
+# Clone the repository
 git clone https://github.com/stonemanhero/devclone.git
 cd devclone
 
-# 2. Create your local .env configuration from the template
+# Create your local configuration from the example template
 cp .env.example .env
 
-# 3. Edit .env with your SSH user, remote IP, and project directories
-nano .env
-```
-
-### Install Python Dependencies & CLI Command
-
-Using `pip` or `pipx`:
-```bash
+# Install via pip (or link to ~/.local/bin)
 pip install -e .
 ```
 
-Or link the executable script directly into `~/.local/bin`:
-```bash
-pip install -r requirements.txt
-chmod +x devclone
-ln -s "$(pwd)/devclone" ~/.local/bin/devclone
-```
+*(Alternatively, without `pip install -e .`: run `pip install -r requirements.txt && ln -s "$(pwd)/devclone" ~/.local/bin/devclone`)*
 
----
+### 3. Configure SSH & `.env`
 
-## Passwordless SSH Setup (Recommended)
-
-`devclone` uses non-interactive SSH (`BatchMode=yes`). If you haven't set up a dedicated passwordless SSH key between your Laptop and Desktop yet:
+If you haven't set up passwordless SSH to your second device yet:
 
 ```bash
-# Generate a dedicated Ed25519 key (press Enter for no passphrase)
-ssh-keygen -t ed25519 -f ~/.ssh/id_desktop -N ""
-
-# Copy the public key to your remote Desktop
-ssh-copy-id -i ~/.ssh/id_desktop.pub user@192.168.1.100
+ssh-keygen -t ed25519 -f ~/.ssh/id_devclone -N ""
+ssh-copy-id -i ~/.ssh/id_devclone.pub user@192.168.1.100
 ```
 
-Then set `DEVCLONE_SSH_KEY=/home/<user>/.ssh/id_desktop` in your `.env` file.
-
----
-
-## Configuration (`.env`)
-
-All settings are configured via `.env` (which is git-ignored). See [`.env.example`](.env.example) for a fully commented template:
+Then open `.env` (or run `devclone config --edit`) and set your connection and project paths:
 
 ```ini
-# --- 1. SSH Connection to Remote Desktop ---
 DEVCLONE_SSH_USER=john
 DEVCLONE_SSH_HOST=192.168.1.100
-DEVCLONE_SSH_PORT=22
-DEVCLONE_SSH_TARGET=
-DEVCLONE_SSH_KEY=/home/john/.ssh/id_ed25519
-DEVCLONE_SSH_CONNECT_TIMEOUT=8
+DEVCLONE_SSH_KEY=/home/john/.ssh/id_devclone
 
-# --- 2. Remote & Local Project Directories (Full Paths) ---
 DEVCLONE_REMOTE_PROJECTS_DIR=/home/john/Projects
 DEVCLONE_LOCAL_PROJECTS_DIR=/home/john/Projects
-
-# --- 3. Local State Registry ---
-DEVCLONE_STATE_FILE=/home/john/.config/devclone/state.json
-
-# --- 4. Docker Volume, Database & File Sync Settings ---
-DEVCLONE_REMOTE_HELPER_IMAGE=redis:alpine
-DEVCLONE_LOCAL_HELPER_IMAGE=redis:alpine
-DEVCLONE_MAX_EPHEMERAL_SQL_MB=4500
-DEVCLONE_SKIP_ARCHIVE_MIN_MB=25
-DEVCLONE_ARCHIVE_EXCLUDE_PATTERNS=backup.zip,*-backup.zip,*.tar.gz,*.sql.gz
-```
-
-You can also view or edit the active configuration at any time via the CLI:
-```bash
-# Display active configuration table
-devclone config
-
-# Open the active .env file in $EDITOR (or nano)
-devclone config --edit
 ```
 
 ---
 
-## Usage & Commands
+## 🛠️ Usage
 
-### 1. Interactive Terminal UI (TUI)
-Launch the full-screen arrow-key selector (`↑`/`↓` to navigate, `/` to live-filter by name or stack, `Enter` to set up an available project or diff an installed project):
+### Interactive Terminal UI
+Run `devclone` with no arguments to open the interactive project browser (`↑`/`↓` to navigate, `/` to search by name or stack, `Enter` to clone an available project or compare an installed one):
+
 ```bash
 devclone
 ```
 
-### 2. List Projects (`devclone list`)
-Discover all remote projects on Desktop, their detected stack (Laravel Sail, WordPress, Next.js, etc.), file sizes, Docker volume sizes, container statuses, and Laptop installation state:
+### Commands Overview
+
+| Command | Description |
+| :--- | :--- |
+| `devclone` | Open the interactive arrow-key terminal browser |
+| `devclone list` | List all projects on the remote device and their local status |
+| `devclone list --docker` | List only Docker Compose projects |
+| `devclone setup <project>` | Clone a project (files + DB/volumes + images + `/etc/hosts` + start) |
+| `devclone diff <project>` | Compare `.env`, database schema/rows/migrations, and uploads between devices |
+| `devclone pull-db <project>` | Refresh **only** the database from the remote device (leaves code untouched) |
+| `devclone pull-env <project>` | Interactively merge missing or updated `.env` variables |
+| `devclone pull-uploads <project>` | Sync **only** missing files in `wp-content/uploads` or `storage/app/public` |
+| `devclone config` | View active configuration (`--edit` to open `.env` in your editor) |
+
+---
+
+## 📖 Common Workflows
+
+### 1. Cloning a Project for the First Time
+
 ```bash
-devclone list
-devclone list --docker       # Only Docker Compose projects
-devclone list --available    # Only projects not yet set up on Laptop
-devclone list --installed    # Only projects already installed on Laptop
+# Pick from an interactive list of available projects
+devclone setup
+
+# Or clone a specific project directly (auto-confirm prompts with -y)
+devclone setup my-app -y
 ```
 
-### 3. One-Time Project Setup (`devclone setup`)
-Provision a project from Desktop onto Laptop (syncs project files, clones Docker volumes/databases read-only, streams custom pre-built Docker images, configures `.env` and `/etc/hosts`, and boots containers):
+**What happens during `devclone setup`:**
+1. Checks if any running local containers use the same ports and offers to stop them.
+2. Syncs project files over `rsync` (automatically skipping huge `.zip`/`.tar.gz` backup archives unless `--include-archives` is passed).
+3. Clones all Docker volumes and databases (using a live `mysqldump` if the remote DB is running, or a fast read-only volume stream if stopped).
+4. Streams any custom-built Docker images from the remote device so you don't have to rebuild them locally.
+5. Adds required `.local` domains to `/etc/hosts` and starts the containers.
+
+### 2. Checking Differences Between Devices (`devclone diff`)
+
+Want to know if the other device has new database migrations, extra table rows, updated `.env` keys, or new media uploads?
+
 ```bash
-devclone setup                   # Interactive picker of available projects
-devclone setup <project-name>    # Set up a specific project
-devclone setup <project-name> -y # Non-interactive (auto-confirm prompts)
+# Compare a single project
+devclone diff my-app
+
+# Compare all installed projects at once
+devclone diff --all
+
+# Show full unmasked values for secret .env keys
+devclone diff my-app --show-secrets
 ```
-**Useful flags:**
-- `--no-start`: Sync files and Docker volumes without starting containers.
-- `--include-archives`: Include large top-level `.zip`/`.tar.gz` backup archives (skipped by default).
-- `--sql-dump`: Force online `mysqldump` streaming.
-- `--with-tunnel`: Start `cloudflared` tunnel containers if defined in `docker-compose.yml` (skipped by default on Laptop).
 
-### 4. Inspect Non-Git Differences (`devclone diff`)
-Compare `.env` variables, database tables/columns/migrations/row counts, untracked uploads, and `/etc/hosts` between Desktop and Laptop:
+### 3. Updating Only the Database, `.env`, or Uploads
+
+Once a project is installed locally, use `git pull` / `git push` for code changes. When you want to pull fresh data or configuration from the other device without touching your code:
+
 ```bash
-devclone diff                    # Interactive picker of installed projects
-devclone diff <project-name>     # Diff a specific project
-devclone diff --all              # Diff all installed projects
-devclone diff <project> --show-secrets  # Unmask sensitive .env values
-```
+# Replace local database with the latest database from the remote device
+devclone pull-db my-app
 
-### 5. Targeted Non-Code Sync Helpers
-When a project is already installed on your Laptop and you only want to refresh non-Git state from Desktop without touching your local code files:
-```bash
-# Refresh ONLY the database / DB volume from Desktop
-devclone pull-db <project-name>
+# Interactively merge new .env variables
+devclone pull-env my-app
 
-# Interactively merge missing or updated .env keys from Desktop
-devclone pull-env <project-name>
-
-# Sync ONLY missing files in wp-content/uploads or storage/app/public
-devclone pull-uploads <project-name>
+# Copy any new uploaded files (wp-content/uploads, storage/app/public)
+devclone pull-uploads my-app
 ```
 
 ---
 
-## License
+## ⚙️ Configuration Reference (`.env`)
+
+Your local `.env` file is ignored by Git. See [`.env.example`](.env.example) for the full template with comments:
+
+| Variable | Example | Description |
+| :--- | :--- | :--- |
+| `DEVCLONE_SSH_USER` | `john` | SSH username on the remote device |
+| `DEVCLONE_SSH_HOST` | `192.168.1.100` | IP address or hostname of the remote device |
+| `DEVCLONE_SSH_PORT` | `22` | SSH port on the remote device |
+| `DEVCLONE_SSH_KEY` | `~/.ssh/id_ed25519` | Path to private SSH key (leave empty to use `~/.ssh/config`) |
+| `DEVCLONE_REMOTE_PROJECTS_DIR` | `/home/john/Projects` | Full path to the projects folder on the remote device |
+| `DEVCLONE_LOCAL_PROJECTS_DIR` | `/home/john/Projects` | Full path to the projects folder on this device |
+| `DEVCLONE_STATE_FILE` | `~/.config/devclone/state.json` | Local registry tracking installed projects |
+| `DEVCLONE_SKIP_ARCHIVE_MIN_MB` | `25` | Skip top-level `.zip`/`.tar.gz` archives larger than this size (MB) |
+
+---
+
+## 📄 License
 
 Released under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).

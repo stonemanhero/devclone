@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "devclone"
 version = "1.0.0"
-description = "Remote Desktop to Local Laptop Docker Project Cloner & Non-Git Diff Inspector"
+description = "Clone complete Docker & local development projects between two devices over SSH"
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.9"
