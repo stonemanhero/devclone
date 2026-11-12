@@ -349,13 +349,82 @@ def ensure_sail_env_defaults(local_env_path: Path) -> List[str]:
     return added
 
 
+def ensure_matching_db_image_from_remote(proj: ProjectInfo) -> None:
+    """
+    Ensure the local database image (e.g. `mysql` or `mariadb`) matches the exact image ID
+    on the remote device. If a project uses an unpinned tag like `image: mysql`, pulling `:latest`
+    from Docker Hub on the local device can fetch a newer major version (e.g. MySQL 26.x vs 9.5)
+    that refuses to mount the cloned binary `/var/lib/mysql` volume (`MY-014060`).
+    """
+    if not proj.db_config or not proj.db_config.image:
+        return
+    raw_img = proj.db_config.image
+    db_img = raw_img if ":" in raw_img else f"{raw_img}:latest"
+
+    rem_proc = subprocess.run(
+        ssh_cmd_args() + [f"docker image inspect --format '{{{{.Id}}}}' {shlex.quote(db_img)} 2>/dev/null"],
+        capture_output=True,
+        text=True,
+    )
+    if rem_proc.returncode != 0 or not rem_proc.stdout.strip():
+        return
+    rem_id = rem_proc.stdout.strip()
+
+    loc_proc = subprocess.run(
+        ["docker", "image", "inspect", "--format", "{{.Id}}", db_img],
+        capture_output=True,
+        text=True,
+    )
+    loc_id = loc_proc.stdout.strip() if loc_proc.returncode == 0 else ""
+
+    if loc_id == rem_id:
+        return
+
+    reason = (
+        "version mismatch with remote DB volume"
+        if loc_id
+        else "ensuring exact DB version match"
+    )
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        progress.add_task(
+            description=f"Streaming database image [bold]{db_img}[/bold] from remote device ({reason})...",
+            total=None,
+        )
+        ssh_p = subprocess.Popen(
+            ssh_cmd_args() + [f"docker save {shlex.quote(db_img)}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        load_p = subprocess.Popen(
+            ["docker", "load"],
+            stdin=ssh_p.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if ssh_p.stdout:
+            ssh_p.stdout.close()
+        load_p.communicate()
+        ssh_p.communicate()
+
+    if ssh_p.returncode == 0 and load_p.returncode == 0:
+        console.print(f"[green]✓ Synced matching database image [bold]{db_img}[/bold] from remote device[/green]")
+
+
 def sync_custom_built_images_from_desktop(proj: ProjectInfo, include_tunnel: bool = False) -> bool:
     """
     For any service in docker-compose with a `build:` section, check if the built image
     already exists on Desktop. If it does (and is not yet on Laptop), stream it via
     `docker save | docker load` over LAN instead of running a slow/fragile Dockerfile build.
+    Also ensures the database service image matches the exact remote image SHA so binary
+    volumes never fail due to `:latest` tag drift.
     Returns True if all buildable services now have their images present on Laptop.
     """
+    ensure_matching_db_image_from_remote(proj)
     services_dict = (proj.compose_data or {}).get("services") or {}
     all_ready = True
 
